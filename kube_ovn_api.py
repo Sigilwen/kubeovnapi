@@ -5,7 +5,6 @@ from pydantic import BaseModel
 from typing import Dict, Any, Optional
 
 
-
 app = FastAPI()
 app.add_middleware(
     CORSMiddleware,
@@ -16,8 +15,14 @@ app.add_middleware(
 )
 
 
-# Load kubeconfig (or use in-cluster configuration)
-config.load_kube_config()  # Use config.load_incluster_config() if running inside a pod
+# Load kubeconfig (try in-cluster first, then local kubeconfig)
+try:
+    config.load_incluster_config()  # For running inside a Kubernetes pod
+except config.ConfigException:
+    try:
+        config.load_kube_config()  # For local development
+    except config.ConfigException:
+        raise Exception("Could not load Kubernetes configuration. Make sure you have access to a Kubernetes cluster.")
 api = client.CustomObjectsApi()
 
 NAMESPACE = "kube-system"
@@ -124,7 +129,6 @@ async def create_resource(resource: str, create_body: CreateBody):
         raise HTTPException(status_code=e.status, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
 
 
 @app.patch("/api/{resource}/{resource_name}")
